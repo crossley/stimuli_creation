@@ -1,0 +1,248 @@
+clear all
+close all
+clc
+
+rand('seed',sum(100*clock))
+
+% Number of As and Bs
+
+stim_category_a = 150;
+stim_category_b = 150;
+
+total_II_stim_num = 300;
+
+if (mod(total_II_stim_num,2) ~= 0)
+
+    error('Need to have equal number of stim per category')
+    
+end    
+    
+II_stim_per_category = total_II_stim_num/2;
+
+range = 100;
+
+x_c = 40;
+y_c = 40;
+
+mu_a = [5,50];
+mu_b = [15,50];
+
+mu_c = [32+20,48+20];
+mu_d = [48+20,32+20];
+
+cov_a = [10/(3.5) 0;
+         0 100/3;]*0.5;
+     
+cov_a = cov_a * cov_a; % This code will not be good if cov_a is not a diagnol matrix
+cov_b = cov_a;
+
+d1 = sqrt(2)*32/3; 
+d2 = sqrt(2)*(48-32)/7;
+
+cov_c = make_covar_matrix(d1^2,d2^2);
+cov_d = cov_c;
+ 
+sample_a = make_mult_norm(mu_a,cov_a,stim_category_a);
+sample_b = make_mult_norm(mu_b,cov_b,stim_category_b);
+sample_c = make_mult_norm(mu_c,cov_c,II_stim_per_category);
+sample_d = make_mult_norm(mu_d,cov_d,II_stim_per_category);
+
+labeled_sample_a = [ones(length(sample_a),1) sample_a];
+labeled_sample_b = [2*ones(length(sample_b),1) sample_b];
+labeled_sample_c = [ones(length(sample_c),1) sample_c];
+labeled_sample_d = [2*ones(length(sample_d),1) sample_d];
+
+xyaxes = [-10 110 -10 110];
+data = [labeled_sample_a;labeled_sample_b;labeled_sample_c;labeled_sample_d;];
+figure('Position',[50 550 560 420],'MenuBar','none','NumberTitle','off','Name','Raw Stim');
+plot2dstim(data,xyaxes,0);
+
+% We now enter a loop in which we first run transample to make sure that the population 
+% mean is equal to the sample mean and that the population covariance is equal to the sample
+% variance.  We then remove all stimuli whose Mahalanobis distance from the mean is greater than 3.
+% If we remove any stimuli then we run the loop again.
+
+run_again = 1;
+run_number = 0;
+
+while (run_again)
+    
+    run_number = run_number + 1;
+    run_again = 0;
+    
+	% Transform the sample so that the sample means and covariance
+	% matrices are equal to the population means and covariance matrices.
+	
+	sample_a = transample(sample_a,mu_a',cov_a);
+	sample_b = transample(sample_b,mu_b',cov_b);
+    sample_c = transample(sample_c,mu_c',cov_c);
+    sample_d = transample(sample_d,mu_d',cov_d);
+
+    clipped_sample_a = [];
+	clipped_sample_b = [];
+    clipped_sample_c = [];
+    clipped_sample_d = [];
+	    
+    % We now clip out the stimuli that are too far from the mean.  If there
+    % are any then we will run the loop again
+    
+	for i = 1:stim_category_a
+       
+        if (mahal_dist(sample_a(i,:), mu_a, cov_a) <= 3)
+	
+            clipped_sample_a(size(clipped_sample_a,1)+1,:) = sample_a(i,:);
+            
+        else
+            
+            run_again = 1;
+            
+        end
+        
+    end
+    
+    for j = 1:stim_category_b
+        
+        if (mahal_dist(sample_b(j,:), mu_b, cov_b) <= 3)
+            
+            clipped_sample_b(size(clipped_sample_b,1)+1,:) = sample_b(j,:);
+            
+        else
+            
+            run_again = 1;
+            
+        end
+        
+    end
+    
+    for k = 1:II_stim_per_category
+        
+        if (mahal_dist(sample_c(k,:), mu_c, cov_c) <= 3)
+            
+            clipped_sample_c(size(clipped_sample_c,1)+1,:) = sample_c(k,:);
+            
+        else
+            
+            run_again = 1;
+            
+        end
+        
+    end
+    
+    for l = 1:II_stim_per_category
+        
+        if (mahal_dist(sample_d(l,:), mu_d, cov_d) <= 3)
+            
+            clipped_sample_d(size(clipped_sample_d,1)+1,:) = sample_d(l,:);
+            
+        else
+            
+            run_again = 1;
+            
+        end
+        
+    end
+    
+	
+	% We add stimuli to make up for those lost in clipping. 
+	
+	while (size(clipped_sample_a,1) < stim_category_a)
+	
+        temp_stim = make_mult_norm(mu_a,cov_a,1);
+	
+        if (mahal_dist(temp_stim, mu_a, cov_a) <= 3)
+            
+            clipped_sample_a(size(clipped_sample_a,1)+1,:) = temp_stim;
+            
+        end
+        
+	end
+	
+	while (size(clipped_sample_b,1) < stim_category_b)
+	
+        temp_stim = make_mult_norm(mu_b,cov_b,1);
+	
+        if (mahal_dist(temp_stim, mu_b, cov_b) <= 3)
+            
+            clipped_sample_b(size(clipped_sample_b,1)+1,:) = temp_stim;
+            
+        end
+        
+    end
+    
+    while (size(clipped_sample_c,1) < II_stim_per_category)
+	
+        temp_stim = make_mult_norm(mu_c,cov_c,1);
+	
+        if (mahal_dist(temp_stim, mu_c, cov_c) <= 3)
+            
+            clipped_sample_c(size(clipped_sample_c,1)+1,:) = temp_stim;
+            
+        end
+        
+        end
+    
+    while (size(clipped_sample_d,1) < II_stim_per_category)
+	
+        temp_stim = make_mult_norm(mu_d,cov_d,1);
+	
+        if (mahal_dist(temp_stim, mu_d, cov_d) <= 3)
+            
+            clipped_sample_d(size(clipped_sample_d,1)+1,:) = temp_stim;
+            
+        end
+        
+    end
+    
+    
+    sample_a = clipped_sample_a;
+    sample_b = clipped_sample_b;
+    sample_c = clipped_sample_c;
+    sample_d = clipped_sample_d;
+    
+   	labeled_sample_a = [ones(stim_category_a,1) sample_a];
+	labeled_sample_b = [2*ones(stim_category_b,1) sample_b];
+    labeled_sample_c = [ones(length(sample_c),1) sample_c];
+    labeled_sample_d = [2*ones(length(sample_d),1) sample_d];
+	
+	data = [labeled_sample_a;labeled_sample_b;labeled_sample_c;labeled_sample_d;];
+	figure('Position',[50 550 560 420],'MenuBar','none','NumberTitle','off','Name',['Emerging Stim - Iteration: ' num2str(run_number)] );
+	plot2dstim(data,xyaxes,0);
+    
+end
+
+training_data = [labeled_sample_a; labeled_sample_b;];
+transfer_data = [labeled_sample_c; labeled_sample_d;];
+
+final_training_stim(:,1) = training_data(:,1);
+final_training_stim(:,2) = .5 + (training_data(:,2)/30); %x - axis (cpd)
+final_training_stim(:,3) = (training_data(:,3) * (pi/200)) + (pi/9); % y - axis (rad)
+
+final_transfer_stim(:,1) = transfer_data(:,1);
+final_transfer_stim(:,2) = .5 + (transfer_data(:,2)/30); %x - axis (cpd)
+final_transfer_stim(:,3) = (transfer_data(:,3) * (pi/200)) + (pi/9); % y - axis (rad)
+
+xyaxes = [0.25 3.58 pi/9 pi/2+pi/9];
+
+% Plot Original Data
+figure('Position',[50 50 560 420],'MenuBar','none','NumberTitle','off','Name','Final Stim');
+plot2dstim(final_training_stim,xyaxes,0)
+
+figure('Position',[50 50 560 420],'MenuBar','none','NumberTitle','off','Name','Final Stim');
+plot2dstim(final_transfer_stim,xyaxes,0)
+
+% final = [category orientation spatial_frequency]
+
+final_training_stim = randrows(final_training_stim);
+final_transfer_stim = randrows(final_transfer_stim);
+
+%  Write data to file
+open_cmd = ['fid = fopen([cd ''/output/training_stim.dat''],''w'');'];
+eval(open_cmd);
+fprintf(fid,'%i %7.4f %1.4f \n',final_training_stim');
+fclose(fid);
+
+open_cmd = ['fid = fopen([cd ''/output/transfer_stim.dat''],''w'');'];
+eval(open_cmd);
+fprintf(fid,'%i %7.4f %1.4f \n',final_transfer_stim');
+fclose(fid);
+
